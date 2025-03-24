@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package proto.server.v1;
+
+option go_package = "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1;serverv1";
+
+message EmptyRequest {
+}
+
+message Data {
+  string label = 1;
+}
+
+message Node {
+  string id = 1;
+  string type = 2;
+  Data data = 3;
+  string source_position = 4;
+  string target_position = 5;
+}
+
+message NodesResponse {
+  repeated Node nodes = 1;
+}
+
+message Marker {
+  string type = 1;
+}
+
+message Edge {
+  string id = 1;
+  string source = 2;
+  string target = 3;
+  string label = 4;
+}
+
+message EdgesResponse {
+  repeated Edge edges = 1;
+}
+
+message CommandResponse {
+  string message = 1;
+}
+
+message CommandSentRequest {
+  string command = 1;
+  string from = 2;
+  string to = 3;
+}
+
+service CommanderService {
+  // IssueCommand sends a command to the generals
+  rpc IssueCommand(EmptyRequest) returns (CommandResponse) {}
+  // SentCommand sent command is sent by the generals when they send a command to another
+  // general, it allows us to track the commands sent and update the UI  
+  rpc CommandSent(CommandSentRequest) returns (CommandResponse) {}
+  rpc Nodes(EmptyRequest) returns (NodesResponse) {}
+  rpc Edges(EmptyRequest) returns (EdgesResponse) {}
+}

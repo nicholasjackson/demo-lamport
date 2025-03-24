@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package proto.client.v1;
+
+option go_package = "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/client/v1;clientv1";
+
+message EmptyRequest {}
+message EmptyResponse {}
+
+message ReceiveCommandRequest {
+  string command = 1;
+  string from = 2;
+  bool is_commander = 3;
+}
+
+service GeneralsService {
+  // ReceiveCommand from the generals or commander
+  rpc ReceiveCommand(ReceiveCommandRequest) returns (EmptyResponse) {}
+}
