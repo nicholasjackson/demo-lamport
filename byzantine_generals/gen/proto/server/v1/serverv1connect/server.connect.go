@@ -39,10 +39,16 @@ const (
 	// CommanderServiceCommandSentProcedure is the fully-qualified name of the CommanderService's
 	// CommandSent RPC.
 	CommanderServiceCommandSentProcedure = "/proto.server.v1.CommanderService/CommandSent"
+	// CommanderServiceDecisionMadeProcedure is the fully-qualified name of the CommanderService's
+	// DecisionMade RPC.
+	CommanderServiceDecisionMadeProcedure = "/proto.server.v1.CommanderService/DecisionMade"
 	// CommanderServiceNodesProcedure is the fully-qualified name of the CommanderService's Nodes RPC.
 	CommanderServiceNodesProcedure = "/proto.server.v1.CommanderService/Nodes"
 	// CommanderServiceEdgesProcedure is the fully-qualified name of the CommanderService's Edges RPC.
 	CommanderServiceEdgesProcedure = "/proto.server.v1.CommanderService/Edges"
+	// CommanderServiceDecisionsProcedure is the fully-qualified name of the CommanderService's
+	// Decisions RPC.
+	CommanderServiceDecisionsProcedure = "/proto.server.v1.CommanderService/Decisions"
 )
 
 // CommanderServiceClient is a client for the proto.server.v1.CommanderService service.
@@ -52,8 +58,14 @@ type CommanderServiceClient interface {
 	// SentCommand sent command is sent by the generals when they send a command to another
 	// general, it allows us to track the commands sent and update the UI
 	CommandSent(context.Context, *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error)
+	// DecisionMade is called when a decision has been made by the generals
+	DecisionMade(context.Context, *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error)
+	// Returns the nodes in the graph, used by the UI
 	Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error)
+	// Returns the edges in the graph, used by the UI
 	Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error)
+	// Returns the decisions made by the generals
+	Decisions(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.DecisionsResponse], error)
 }
 
 // NewCommanderServiceClient constructs a client for the proto.server.v1.CommanderService service.
@@ -79,6 +91,12 @@ func NewCommanderServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(commanderServiceMethods.ByName("CommandSent")),
 			connect.WithClientOptions(opts...),
 		),
+		decisionMade: connect.NewClient[v1.Decision, v1.EmptyResponse](
+			httpClient,
+			baseURL+CommanderServiceDecisionMadeProcedure,
+			connect.WithSchema(commanderServiceMethods.ByName("DecisionMade")),
+			connect.WithClientOptions(opts...),
+		),
 		nodes: connect.NewClient[v1.EmptyRequest, v1.NodesResponse](
 			httpClient,
 			baseURL+CommanderServiceNodesProcedure,
@@ -91,6 +109,12 @@ func NewCommanderServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(commanderServiceMethods.ByName("Edges")),
 			connect.WithClientOptions(opts...),
 		),
+		decisions: connect.NewClient[v1.EmptyRequest, v1.DecisionsResponse](
+			httpClient,
+			baseURL+CommanderServiceDecisionsProcedure,
+			connect.WithSchema(commanderServiceMethods.ByName("Decisions")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -98,8 +122,10 @@ func NewCommanderServiceClient(httpClient connect.HTTPClient, baseURL string, op
 type commanderServiceClient struct {
 	issueCommand *connect.Client[v1.EmptyRequest, v1.CommandResponse]
 	commandSent  *connect.Client[v1.CommandSentRequest, v1.CommandResponse]
+	decisionMade *connect.Client[v1.Decision, v1.EmptyResponse]
 	nodes        *connect.Client[v1.EmptyRequest, v1.NodesResponse]
 	edges        *connect.Client[v1.EmptyRequest, v1.EdgesResponse]
+	decisions    *connect.Client[v1.EmptyRequest, v1.DecisionsResponse]
 }
 
 // IssueCommand calls proto.server.v1.CommanderService.IssueCommand.
@@ -112,6 +138,11 @@ func (c *commanderServiceClient) CommandSent(ctx context.Context, req *connect.R
 	return c.commandSent.CallUnary(ctx, req)
 }
 
+// DecisionMade calls proto.server.v1.CommanderService.DecisionMade.
+func (c *commanderServiceClient) DecisionMade(ctx context.Context, req *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error) {
+	return c.decisionMade.CallUnary(ctx, req)
+}
+
 // Nodes calls proto.server.v1.CommanderService.Nodes.
 func (c *commanderServiceClient) Nodes(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
 	return c.nodes.CallUnary(ctx, req)
@@ -122,6 +153,11 @@ func (c *commanderServiceClient) Edges(ctx context.Context, req *connect.Request
 	return c.edges.CallUnary(ctx, req)
 }
 
+// Decisions calls proto.server.v1.CommanderService.Decisions.
+func (c *commanderServiceClient) Decisions(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.DecisionsResponse], error) {
+	return c.decisions.CallUnary(ctx, req)
+}
+
 // CommanderServiceHandler is an implementation of the proto.server.v1.CommanderService service.
 type CommanderServiceHandler interface {
 	// IssueCommand sends a command to the generals
@@ -129,8 +165,14 @@ type CommanderServiceHandler interface {
 	// SentCommand sent command is sent by the generals when they send a command to another
 	// general, it allows us to track the commands sent and update the UI
 	CommandSent(context.Context, *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error)
+	// DecisionMade is called when a decision has been made by the generals
+	DecisionMade(context.Context, *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error)
+	// Returns the nodes in the graph, used by the UI
 	Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error)
+	// Returns the edges in the graph, used by the UI
 	Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error)
+	// Returns the decisions made by the generals
+	Decisions(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.DecisionsResponse], error)
 }
 
 // NewCommanderServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -152,6 +194,12 @@ func NewCommanderServiceHandler(svc CommanderServiceHandler, opts ...connect.Han
 		connect.WithSchema(commanderServiceMethods.ByName("CommandSent")),
 		connect.WithHandlerOptions(opts...),
 	)
+	commanderServiceDecisionMadeHandler := connect.NewUnaryHandler(
+		CommanderServiceDecisionMadeProcedure,
+		svc.DecisionMade,
+		connect.WithSchema(commanderServiceMethods.ByName("DecisionMade")),
+		connect.WithHandlerOptions(opts...),
+	)
 	commanderServiceNodesHandler := connect.NewUnaryHandler(
 		CommanderServiceNodesProcedure,
 		svc.Nodes,
@@ -164,16 +212,26 @@ func NewCommanderServiceHandler(svc CommanderServiceHandler, opts ...connect.Han
 		connect.WithSchema(commanderServiceMethods.ByName("Edges")),
 		connect.WithHandlerOptions(opts...),
 	)
+	commanderServiceDecisionsHandler := connect.NewUnaryHandler(
+		CommanderServiceDecisionsProcedure,
+		svc.Decisions,
+		connect.WithSchema(commanderServiceMethods.ByName("Decisions")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/proto.server.v1.CommanderService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CommanderServiceIssueCommandProcedure:
 			commanderServiceIssueCommandHandler.ServeHTTP(w, r)
 		case CommanderServiceCommandSentProcedure:
 			commanderServiceCommandSentHandler.ServeHTTP(w, r)
+		case CommanderServiceDecisionMadeProcedure:
+			commanderServiceDecisionMadeHandler.ServeHTTP(w, r)
 		case CommanderServiceNodesProcedure:
 			commanderServiceNodesHandler.ServeHTTP(w, r)
 		case CommanderServiceEdgesProcedure:
 			commanderServiceEdgesHandler.ServeHTTP(w, r)
+		case CommanderServiceDecisionsProcedure:
+			commanderServiceDecisionsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -191,10 +249,18 @@ func (UnimplementedCommanderServiceHandler) CommandSent(context.Context, *connec
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.CommandSent is not implemented"))
 }
 
+func (UnimplementedCommanderServiceHandler) DecisionMade(context.Context, *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.DecisionMade is not implemented"))
+}
+
 func (UnimplementedCommanderServiceHandler) Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Nodes is not implemented"))
 }
 
 func (UnimplementedCommanderServiceHandler) Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Edges is not implemented"))
+}
+
+func (UnimplementedCommanderServiceHandler) Decisions(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.DecisionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Decisions is not implemented"))
 }

@@ -9,12 +9,14 @@ import {
  
 const BiDirectionalNode = ({ data }: NodeProps<BuiltInNode>) => {
   return (
-    <div>
-      <Handle type="source" position={Position.Top} id="top" />
-      <Handle type="source" position={Position.Left} id="left" />
-      <Handle type="source" position={Position.Right} id="right" />
-      {data?.label}
-    </div>
+    <>
+      <div>
+        <Handle type="source" position={Position.Top} id="top" />
+        <Handle type="source" position={Position.Left} id="left" />
+        <Handle type="source" position={Position.Right} id="right" />
+        {data?.label}
+      </div>
+    </>
   );
 };
  

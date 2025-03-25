@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ReactFlow, Controls, Background, Position, ConnectionMode, MarkerType, applyEdgeChanges, applyNodeChanges } from '@xyflow/react';
+import { ReactFlow, Controls, Background, ConnectionMode, MarkerType, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 
 import BiDirectionalEdge from './BiDirectionalEdge';
 import BiDirectionalNode from './BiDirectionalNode';
@@ -17,7 +17,42 @@ const defaultEdges = [];
 
 function Grid() {
   let [nodes, setNodes] = useState(defaultNodes);
-  let [edges, setEdges, onEdgesChange] = useState(defaultEdges);
+  let [edges, setEdges] = useState(defaultEdges);
+
+  function getDecisions() {
+    const url = 'http://localhost:8080/proto.server.v1.CommanderService/Decisions';
+    fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
+      .then((response) => response.json())
+      .then((data) => {
+        if(data.decisions === undefined) {
+          return;
+        }
+
+        data.decisions.forEach((decision) => {
+          // add the decision to the node
+          const index = nodes.findIndex((item) => item.id === decision.from);
+          if (index > -1) {
+            console.log("Adding decision to node", decision.from, decision.decision);
+
+            let bgColor = '#fd4848';
+            if(decision.decision === 'attack') {
+              bgColor = '#36ff40';
+            }
+
+            nodes[index] = {
+              ...nodes[index],
+              style: {...nodes[index].style, backgroundColor: bgColor},
+              data: {...nodes[index].data, decision: decision.decision}
+            };
+          }
+        });
+
+        // update the nodes if we have decisions
+        if (data.decisions.length > 0) {
+          setNodes(nodes);
+        }
+    });
+  }
 
   function getNodes() {
     const url = 'http://localhost:8080/proto.server.v1.CommanderService/Nodes';
@@ -58,6 +93,10 @@ function Grid() {
     fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
       .then((response) => response.json())
       .then((data) => {
+        if(data.edges === undefined) {
+          return;
+        }
+        
         let edgesToAdd = [];
 
         // loop over the nodes and find the nodes for each edge
@@ -114,13 +153,25 @@ function Grid() {
 
     return () => clearInterval(edgesInterval);
   }, []);
+  
+  useEffect(() => {
+    const decisionsInterval = setInterval(getDecisions, 5000);
 
+    return () => clearInterval(decisionsInterval);
+  }, []);
 
   const onNodesChange = useCallback(
     (changes) => {
-      setNodes((nds) => applyNodeChanges(changes, nds))
+      setNodes((oldNodes) => applyNodeChanges(changes, oldNodes));
     },
-    [],
+    [setNodes],
+  );
+  
+  const onEdgesChange = useCallback(
+    (changes) => {
+      setEdges((oldEdges) => applyEdgeChanges(changes, oldEdges));
+    },
+    [setEdges],
   );
 
   return (

@@ -28,6 +28,8 @@ var nodes = []*v1.Node{
 
 var commands []*v1.CommandSentRequest
 
+var decisions []*v1.Decision
+
 func nodeExists(id string) bool {
 	for _, n := range nodes {
 		if n.Id == id {
@@ -96,6 +98,15 @@ func (s *CommanderServer) CommandSent(ctx context.Context, req *connect.Request[
 	return &connect.Response[v1.CommandResponse]{Msg: &resp}, nil
 }
 
+func (s *CommanderServer) DecisionMade(ctx context.Context, req *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error) {
+	s.Log.Info("Received a decision from a node", "decision", req.Msg.Decision, "from", req.Msg.From)
+
+	decisions = append(decisions, req.Msg)
+
+	resp := v1.EmptyResponse{}
+	return &connect.Response[v1.EmptyResponse]{Msg: &resp}, nil
+}
+
 func (s *CommanderServer) Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
 	s.Log.Info("Received a request for the nodes")
 
@@ -145,5 +156,16 @@ func (s *CommanderServer) Edges(context.Context, *connect.Request[v1.EmptyReques
 	}
 
 	resp := connect.NewResponse(er)
+	return resp, nil
+}
+
+func (s *CommanderServer) Decisions(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.DecisionsResponse], error) {
+	s.Log.Info("Received a request for the decisions")
+
+	dr := &v1.DecisionsResponse{
+		Decisions: decisions,
+	}
+
+	resp := connect.NewResponse(dr)
 	return resp, nil
 }

@@ -4,8 +4,8 @@ package proto.server.v1;
 
 option go_package = "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1;serverv1";
 
-message EmptyRequest {
-}
+message EmptyRequest {}
+message EmptyResponse {}
 
 message Data {
   string label = 1;
@@ -38,6 +38,7 @@ message EdgesResponse {
   repeated Edge edges = 1;
 }
 
+
 message CommandResponse {
   string message = 1;
 }
@@ -48,12 +49,28 @@ message CommandSentRequest {
   string to = 3;
 }
 
+message Decision {
+  int32 round = 1;
+  string from = 2;
+  string decision = 3;
+}
+
+message DecisionsResponse {
+  repeated Decision decisions = 1;
+}
+
 service CommanderService {
   // IssueCommand sends a command to the generals
   rpc IssueCommand(EmptyRequest) returns (CommandResponse) {}
   // SentCommand sent command is sent by the generals when they send a command to another
   // general, it allows us to track the commands sent and update the UI  
   rpc CommandSent(CommandSentRequest) returns (CommandResponse) {}
+  // DecisionMade is called when a decision has been made by the generals
+  rpc DecisionMade(Decision) returns (EmptyResponse) {}
+  // Returns the nodes in the graph, used by the UI
   rpc Nodes(EmptyRequest) returns (NodesResponse) {}
+  // Returns the edges in the graph, used by the UI
   rpc Edges(EmptyRequest) returns (EdgesResponse) {}
+  // Returns the decisions made by the generals
+  rpc Decisions(EmptyRequest) returns (DecisionsResponse) {}
 }
