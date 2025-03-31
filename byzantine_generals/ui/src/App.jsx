@@ -90,7 +90,9 @@ function Flow() {
           <Grid/>
         </CustomTabPanel>
         <CustomTabPanel value={value} index={1}>
-          <Table/>
+          <Table round={1}/>
+          <Table round={2}/>
+          <Table round={3}/>
         </CustomTabPanel>
       </Box>
     </Box>

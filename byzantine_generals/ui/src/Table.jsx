@@ -2,79 +2,25 @@ import { useState, useEffect, useCallback } from 'react';
 import { DataGrid } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
 
-const columns = [
+const baseColumns = [
   {
-    field: 'name',
-    headerName: 'Name',
+    field: 'col1',
+    headerName: '',
     width: 150,
     editable: false,
-  },
-  {
-    field: 'traitor',
-    headerName: 'Is Traitor',
-    width: 110,
-    editable: false,
-  },
-  {
-    field: 'decision1',
-    headerName: 'Round 1 Decision',
-    width: 150,
-    editable: false,
-  },
-  {
-    field: 'data1',
-    headerName: 'Round 1 Data',
-    width: 200,
-    editable: false,
-    renderCell: (params) => {
-      const rows = [];
-      if (!params.row.data1) {
-        return <div></div>;
+    cellClassName: (params) => {
+      if (params.row.col1 === '') {
+        return 'white_column';
       }
 
-      for (let i = 0; i < params.row.data1.length; i++) {
-        rows.push(<div key={i}>{params.row.data1[i].from}: {params.row.data1[i].command}</div>);
-      }
-
-      return (
-        <div>
-          {rows}
-        </div>
-      );
-    },
-  },
-  {
-    field: 'decision2',
-    headerName: 'Round 2 Decision',
-    width: 150,
-    editable: false,
-  },
-  {
-    field: 'data2',
-    headerName: 'Round 2 Data',
-    width: 200,
-    editable: false,
-    renderCell: (params) => {
-      const rows = [];
-      if (!params.row.data2) {
-        return <div></div>;
-      }
-
-      for (let i = 0; i < params.row.data2.length; i++) {
-        rows.push(<div key={i}>{params.row.data2[i].from}: {params.row.data2[i].command}</div>);
-      }
-
-      return (
-        <div>
-          {rows}
-        </div>
-      );
+      return 'general_column';
     },
   },
 ];
 
-function Table() {
+function Table(props) {
   let [rows, setRows] = useState([]);
+  let [cols, setCols] = useState([]);
 
   async function getData() {
     // fetch the node data
@@ -87,42 +33,188 @@ function Table() {
     const decisionsResponse = await fetch(decisionUrl, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({allData: true})});
     const decisionData = await decisionsResponse.json();
 
-    rows = [];
+    // build the columns
+    cols = [...baseColumns];
     nodesData?.nodes.forEach((node) => {
-      const decision1 = decisionData.decisions?.find((d) => d.from === node.id && d.round === 1);
-      // round 1 data
-      const data1 = decision1?.commands
-      for (let i = 0; i < data1?.length; i++) {
-        const fromNode = nodesData.nodes.find((n) => n.id === data1[i].from);
-        if (fromNode) {
-          data1[i].from = fromNode.data.label;
-        }
+      if (node.data.label === "Commander") {
+        return;
       }
+
+      cols.push({
+        field: node.id,
+        headerName: node.data.label,
+        width: 100,
+        editable: false,
+        headerClassName: 'table_header',
+      });
       
-      const decision2 = decisionData.decisions?.find((d) => d.from === node.id && d.round === 2);
-      // round 1 data
-      const data2 = decision1?.commands
-      for (let i = 0; i < data1?.length; i++) {
-        const fromNode = nodesData.nodes.find((n) => n.id === data2[i].from);
-        if (fromNode) {
-          data2[i].from = fromNode.data.label;
-        }
-      }
-
-      const row = {
-        id: node.id,
-        name: node.data.label,
-        traitor: node.isTraitor ? 'yes' : 'no',
-        decision1: decision1 ? decision1.decision : 'undecided',
-        data1: data1,
-        decision2: decision2 ? decision2.decision : 'undecided',
-        data2: data2,
-      };
-
-      rows.push(row);
+      cols.push({
+        field: node.id + '_decision',
+        headerName: '',
+        width: 100,
+        editable: false,
+        headerClassName: 'table_header',
+      });
     });
 
+    cols.push({
+      field: 'decision',
+      headerName: 'Decision',
+      width: 120,
+      editable: false,
+      headerClassName: 'table_header',
+    });
+
+    console.log(cols);
+    setCols(cols);
+
+    // find the commander
+    const commander = nodesData.nodes.find((node) => node.data.label === 'Commander');
+
+    if (props.round === 1) {
+      rows = buildRound1Rows(decisionData);
+    }
+
+    if( props.round === 2) {
+      rows = buildRound2Rows(decisionData,nodesData);
+    }
+
     setRows(rows);
+  }
+
+  function buildRound1Rows(decisionData) {
+    let rows = [];
+    
+    let row = {
+      id: 0,
+      col1: 'Commander',
+    };
+
+    decisionData.decisions?.forEach((decision) => {
+      if (decision.round === 1) {
+        row[decision.from] = decision.decision;
+        row[decision.from + '_decision'] = '';
+
+      }
+    });
+
+
+    rows.push(row);
+    
+    row = {
+      id: 1,
+      col1: '',
+    };
+
+    var attackCount = 0;
+    var retreatCount = 0;
+    var totalCount = 0;
+    decisionData.decisions?.forEach((decision) => {
+      if (decision.round === 1) {
+        row[decision.from] = decision.decision;
+        row[decision.from + '_decision'] = '';
+        
+        if (decision.decision === 'attack') {
+          attackCount++;
+        }
+        
+        if (decision.decision === 'retreat') {
+          retreatCount++;
+        }
+
+        totalCount++;
+      }
+    });
+    
+    row.decision = 'Inconclusive';
+
+    if (attackCount === totalCount) {
+      row.decision = 'attack';
+    }
+
+    if (retreatCount === totalCount) {
+      row.decision = 'retreat';
+    }
+
+    rows.push(row);
+
+    return rows;
+  }
+  
+  function buildRound2Rows(decisionData, nodesData) {
+    let rows = [];
+  
+    let rowID = 0;
+
+    nodesData.nodes.forEach((node) => {
+
+    if (node.data.label === "Commander") {
+      return;
+    }
+
+    let row = {
+      id: rowID,
+      col1: node.data.label,
+    };
+
+    rowID++;
+
+    decisionData.decisions?.forEach((decision) => {
+      if (decision.round === 1) {
+        row[decision.from] = decision.decision;
+        row[decision.from + '_decision'] = '';
+      }
+    });
+
+
+    rows.push(row);
+    
+    row = {
+      id: 1,
+      col1: '',
+    };
+  });
+
+    //var attackCount = 0;
+    //var retreatCount = 0;
+    //var totalCount = 0;
+    //decisionData.decisions?.forEach((decision) => {
+    //  if (decision.round === 1) {
+    //    row[decision.from] = decision.decision;
+    //    row[decision.from + '_decision'] = '';
+    //    
+    //    if (decision.decision === 'attack') {
+    //      attackCount++;
+    //    }
+    //    
+    //    if (decision.decision === 'retreat') {
+    //      retreatCount++;
+    //    }
+
+    //    totalCount++;
+    //  }
+    //});
+    
+    //row.decision = 'Inconclusive';
+
+    //if (attackCount === totalCount) {
+    //  row.decision = 'attack';
+    //}
+
+    //if (retreatCount === totalCount) {
+    //  row.decision = 'retreat';
+    //}
+
+
+    return rows;
+  }
+
+  let getRowClass = (params) => {
+    if (params.row.col1 === '') {
+      return 'decision_column';
+    }
+
+    return '';
   }
 
   useEffect(() => {
@@ -132,6 +224,8 @@ function Table() {
   }, []);
 
   return (
+    <>
+    <h2>Round {props.round}</h2>
     <Box sx={{ width: '100%' }}>
       <DataGrid
         sx={{
@@ -139,8 +233,9 @@ function Table() {
           '&.MuiDataGrid-root--densityStandard .MuiDataGrid-cell': { py: '15px' },
           '&.MuiDataGrid-root--densityComfortable .MuiDataGrid-cell': { py: '22px' },
         }}
+        getRowClassName={getRowClass}
         rows={rows}
-        columns={columns}
+        columns={cols}
         initialState={{
           pagination: {
             paginationModel: {
@@ -153,6 +248,7 @@ function Table() {
         disableRowSelectionOnClick
       />
     </Box> 
+    </>
   )
 }
 

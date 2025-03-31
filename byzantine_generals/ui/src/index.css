@@ -46,3 +46,25 @@ body {
     border: var(--xy-node-border-default);
     color: var(--xy-node-color, var(--xy-node-color-default));
 }
+
+.table_header{
+  background-color: #434343;
+  font-weight: bold;
+  color: #FFFFFF;
+}
+
+.general_column {
+  background-color: #666666;
+  font-weight: bold;
+  color: #FFFFFF;
+}
+
+.decision_column {
+  background-color: #4285f4;
+  font-weight: bold;
+  color: #FFFFFF;
+}
+
+.white_column {
+  background-color: #FFFFFF;
+}
