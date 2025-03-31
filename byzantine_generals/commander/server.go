@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"connectrpc.com/connect"
 	"github.com/charmbracelet/log"
@@ -16,38 +17,26 @@ import (
 )
 
 var _ serverv1connect.CommanderServiceHandler = &CommanderServer{}
-var nodes = []*v1.Node{
-	{
-		Id:             "0",
-		Type:           "input",
-		Data:           &v1.Data{Label: "Commander"},
-		SourcePosition: "",
-		TargetPosition: "",
-	},
-}
 
 var commands []*v1.CommandSentRequest
-
 var decisions []*v1.Decision
-
-func nodeExists(id string) bool {
-	for _, n := range nodes {
-		if n.Id == id {
-			return true
-		}
-	}
-
-	return false
-}
+var votingRound = 0
 
 type CommanderServer struct {
 	Log        *log.Logger
 	MemberList *memberlist.Memberlist
+	IsTraitor  bool
+	Commands   []string
 }
 
-func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error) {
-	s.Log.Info("Received a request to issue a command")
+func (s *CommanderServer) Reset(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error) {
+	s.Log.Info("Resetting state")
 
+	commands = nil
+	decisions = nil
+	votingRound = 0
+
+	// reset the nodes
 	for _, m := range s.MemberList.Members() {
 		meta := memlist.MetaFromJSON(m.Meta)
 		if meta.IsCommander {
@@ -59,11 +48,49 @@ func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request
 			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
 		)
 
+		client.Reset(ctx, &connect.Request[clientv1.EmptyRequest]{
+			Msg: &clientv1.EmptyRequest{},
+		})
+	}
+
+	resp := v1.EmptyResponse{}
+	return &connect.Response[v1.EmptyResponse]{Msg: &resp}, nil
+}
+
+func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error) {
+	votingRound++
+	s.Log.Info("Received a request to issue a command", "round", votingRound)
+
+	commandsSent := 0
+	generals := []*memlist.Meta{}
+
+	for _, m := range s.MemberList.Members() {
+		meta := memlist.MetaFromJSON(m.Meta)
+		if meta.IsCommander {
+			continue
+		}
+
+		generals = append(generals, meta)
+	}
+
+	sort.Slice(generals, func(i, j int) bool {
+		return generals[i].Name < generals[j].Name
+	})
+
+	for _, meta := range generals {
+		client := clientv1connect.NewGeneralsServiceClient(
+			http.DefaultClient,
+			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
+		)
+
+		command := s.Commands[commandsSent]
+
 		_, err := client.ReceiveCommand(ctx, &connect.Request[clientv1.ReceiveCommandRequest]{
 			Msg: &clientv1.ReceiveCommandRequest{
-				Command:     "attack",
+				Command:     command,
 				From:        "Commander",
 				IsCommander: true,
+				Round:       int32(votingRound),
 			}})
 
 		if err != nil {
@@ -73,11 +100,14 @@ func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request
 
 		// keep a log of commands sent so we can build the edges
 		commandSent := &v1.CommandSentRequest{
-			Command: "attack",
+			Command: command,
 			From:    "0",
 			To:      meta.ID,
 		}
 
+		s.Log.Info("Sending command", "to", meta.ID, "command", command)
+
+		commandsSent++
 		commands = append(commands, commandSent)
 	}
 
@@ -108,24 +138,37 @@ func (s *CommanderServer) DecisionMade(ctx context.Context, req *connect.Request
 }
 
 func (s *CommanderServer) Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
-	s.Log.Info("Received a request for the nodes")
+	nodes := []*v1.Node{}
 
 	// loop through the nodes and send them back
 	for _, m := range s.MemberList.Members() {
 		meta := memlist.MetaFromJSON(m.Meta)
 
-		if !nodeExists(meta.ID) {
-			node := &v1.Node{
-				Id:             meta.ID,
-				Type:           "bidirectional",
-				Data:           &v1.Data{Label: m.Name},
-				SourcePosition: "right",
-				TargetPosition: "left",
-			}
+		nodeType := "bidirectional"
+		nodeSourcePosition := "right"
+		nodeTargetPosition := "left"
 
-			nodes = append(nodes, node)
+		if meta.IsCommander {
+			nodeType = "input"
+			nodeSourcePosition = ""
+			nodeTargetPosition = ""
 		}
+
+		node := &v1.Node{
+			Id:             meta.ID,
+			Type:           nodeType,
+			Data:           &v1.Data{Label: m.Name},
+			SourcePosition: nodeSourcePosition,
+			TargetPosition: nodeTargetPosition,
+			IsTraitor:      meta.IsTraitor,
+		}
+
+		nodes = append(nodes, node)
 	}
+
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Data.Label < nodes[j].Data.Label
+	})
 
 	nr := &v1.NodesResponse{
 		Nodes: nodes,
@@ -136,16 +179,18 @@ func (s *CommanderServer) Nodes(context.Context, *connect.Request[v1.EmptyReques
 }
 
 func (s *CommanderServer) Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
-	s.Log.Info("Received a request for the edges")
-
 	edges := []*v1.Edge{}
 
 	for _, e := range commands {
+		if e.Round != int32(votingRound) {
+			continue
+		}
+
 		edge := &v1.Edge{
 			Id:     fmt.Sprintf("%s-%s", e.From, e.To),
 			Source: e.From,
 			Target: e.To,
-			Label:  "attack",
+			Label:  e.Command,
 		}
 
 		edges = append(edges, edge)
@@ -159,11 +204,17 @@ func (s *CommanderServer) Edges(context.Context, *connect.Request[v1.EmptyReques
 	return resp, nil
 }
 
-func (s *CommanderServer) Decisions(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.DecisionsResponse], error) {
-	s.Log.Info("Received a request for the decisions")
+func (s *CommanderServer) Decisions(ctx context.Context, r *connect.Request[v1.DecisionsRequest]) (*connect.Response[v1.DecisionsResponse], error) {
+	ds := []*v1.Decision{}
+
+	for _, d := range decisions {
+		if d.Round == int32(votingRound) || r.Msg.AllData {
+			ds = append(ds, d)
+		}
+	}
 
 	dr := &v1.DecisionsResponse{
-		Decisions: decisions,
+		Decisions: ds,
 	}
 
 	resp := connect.NewResponse(dr)

@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
 	"github.com/charmbracelet/log"
@@ -19,6 +22,15 @@ import (
 var ml *memberlist.Memberlist
 
 func main() {
+	traitor, err := env.GetBool("TRAITOR", false)
+	if err != nil {
+		log.Error("Failed to get port", "error", err)
+		os.Exit(1)
+	}
+
+	commands := env.GetString("COMMANDS", "")
+	arrCommands := strings.Split(commands, ",")
+
 	mlport, err := env.GetInt("MEMBERLIST_PORT", 7947)
 	if err != nil {
 		log.Error("Failed to get port", "error", err)
@@ -65,6 +77,7 @@ func main() {
 		GRPCPort:       grpcport,
 		ID:             guid.String(),
 		IsCommander:    false,
+		IsTraitor:      traitor,
 		Name:           name,
 	}}
 
@@ -87,13 +100,29 @@ func main() {
 		MemberList: ml,
 		Name:       name,
 		ID:         guid.String(),
+		IsTraitor:  traitor,
+		Commands:   arrCommands,
 	}
 
-	mux := http.NewServeMux()
-	path, handler := clientv1connect.NewGeneralsServiceHandler(general)
-	mux.Handle(path, handler)
-	http.ListenAndServe(
-		fmt.Sprintf("%s:%d", bindAddress, grpcport),
-		h2c.NewHandler(utils.WithCORS(mux), &http2.Server{}),
-	)
+	go func() {
+		mux := http.NewServeMux()
+		path, handler := clientv1connect.NewGeneralsServiceHandler(general)
+		mux.Handle(path, handler)
+		http.ListenAndServe(
+			fmt.Sprintf("%s:%d", bindAddress, grpcport),
+			h2c.NewHandler(utils.WithCORS(mux), &http2.Server{}),
+		)
+	}()
+
+	// block until ctrl-c
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	<-c
+	log.Info("Exiting")
+
+	err = ml.Leave(0)
+	if err != nil {
+		log.Error("Failed to leave memberlist", "error", err)
+		os.Exit(1)
+	}
 }

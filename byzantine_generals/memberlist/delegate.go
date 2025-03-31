@@ -9,6 +9,7 @@ type Meta struct {
 	MemberlistPort int    `json:"memberlist_port"`
 	GRPCPort       int    `json:"grpc_port"`
 	IsCommander    bool   `json:"is_commander"`
+	IsTraitor      bool   `json:"is_traitor"`
 }
 
 func MetaFromJSON(data []byte) *Meta {

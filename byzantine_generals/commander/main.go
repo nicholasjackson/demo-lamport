@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/hashicorp/memberlist"
@@ -18,6 +19,15 @@ import (
 var ml *memberlist.Memberlist
 
 func main() {
+	traitor, err := env.GetBool("TRAITOR", false)
+	if err != nil {
+		log.Error("Failed to get traitor", "error", err)
+		os.Exit(1)
+	}
+
+	commands := env.GetString("COMMANDS", "")
+	arrCommands := strings.Split(commands, ",")
+
 	grpcport, err := env.GetInt("GRPC_PORT", 8080)
 	if err != nil {
 		log.Error("Failed to get port", "error", err)
@@ -46,6 +56,7 @@ func main() {
 		GRPCPort:       8080,
 		IsCommander:    true,
 		ID:             "0",
+		IsTraitor:      traitor,
 	}}
 
 	ml, err = memberlist.Create(config)
@@ -57,6 +68,8 @@ func main() {
 	commander := &CommanderServer{
 		Log:        log.NewWithOptions(os.Stderr, log.Options{Prefix: "commander"}),
 		MemberList: ml,
+		IsTraitor:  traitor,
+		Commands:   arrCommands,
 	}
 
 	mux := http.NewServeMux()

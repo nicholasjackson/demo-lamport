@@ -24,19 +24,29 @@ function Grid() {
     fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
       .then((response) => response.json())
       .then((data) => {
+
         if(data.decisions === undefined) {
+          nodes.forEach((node) => {
+            // remove the decision from the node
+            node.data.decision = undefined;
+            if (node.style !== undefined) {
+              node.style.backgroundColor = undefined;
+            }
+          });
+
+          setNodes(nodes);
           return;
         }
 
         data.decisions.forEach((decision) => {
           // add the decision to the node
           const index = nodes.findIndex((item) => item.id === decision.from);
-          if (index > -1) {
+          if (index > -1 && nodes[index].data.decision === undefined) {
             console.log("Adding decision to node", decision.from, decision.decision);
 
-            let bgColor = '#fd4848';
+            let bgColor = '#fd4848'; // retreat color (red)
             if(decision.decision === 'attack') {
-              bgColor = '#36ff40';
+              bgColor = '#36ff40'; //attack color (green)
             }
 
             nodes[index] = {
@@ -47,10 +57,8 @@ function Grid() {
           }
         });
 
-        // update the nodes if we have decisions
-        if (data.decisions.length > 0) {
-          setNodes(nodes);
-        }
+        // update the nodes
+        setNodes(nodes);
     });
   }
 
@@ -59,30 +67,42 @@ function Grid() {
     fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
       .then((response) => response.json())
       .then((data) => {
-        let nodesToAdd = [];
+        let newNodes = [];
 
         data.nodes.forEach((node, index) => {
+          let copyNode = {...node};
+          
           // does the item exist
           const found = nodes.find((item) => item.id === node.id);
           if (found) {
-            return;
+            copyNode = {...found};
           }
 
-          // set the positions of the nodes
-          if (node.id === '0') {
-            node.position = { x: 100, y: 100 };
-          } else {
-            node.position = { x: 0 + 200 * index, y: 500 };
+          let borderColor = '1px solid #EDEDED'; // default color
+          // if a traitor mark the node border
+          if (node.isTraitor) {
+            borderColor = '2px dashed #404040'; // gray color
           }
 
-          nodesToAdd.push(node);
+          copyNode = {
+            ...copyNode,
+            style: {...copyNode.style, border: borderColor},
+          }
+          
+          newNodes.push(copyNode);
         });
 
-        if (nodesToAdd.length === 0) {
-          return;
+        // set the node positions
+        let generalNodes = 0;
+        for(let i = 0; i < newNodes.length; i++) { 
+          if (newNodes[i].id === '0') {
+            newNodes[i].position = { x: 0, y: 100 };
+          } else {
+            newNodes[i].position = { x: 0 + 200 * generalNodes, y: 500 };
+            generalNodes++;
+          }
         }
 
-        const newNodes = [...nodes, ...nodesToAdd];
         setNodes(newNodes);
         nodes = newNodes;
       });
@@ -93,7 +113,11 @@ function Grid() {
     fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({})})
       .then((response) => response.json())
       .then((data) => {
+
+        // if we have no edges, then we need to set the default edges
         if(data.edges === undefined) {
+          setEdges(defaultEdges);
+          edges = defaultEdges;
           return;
         }
         

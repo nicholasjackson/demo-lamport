@@ -17,6 +17,7 @@ message Node {
   Data data = 3;
   string source_position = 4;
   string target_position = 5;
+  bool is_traitor = 6;
 }
 
 message NodesResponse {
@@ -47,12 +48,23 @@ message CommandSentRequest {
   string command = 1;
   string from = 2;
   string to = 3;
+  int32 round = 4;
+}
+
+message Command {
+  string command = 1;
+  string from = 2;
 }
 
 message Decision {
   int32 round = 1;
   string from = 2;
   string decision = 3;
+  repeated Command commands = 4;
+}
+
+message DecisionsRequest {
+  bool all_data = 1;  
 }
 
 message DecisionsResponse {
@@ -60,6 +72,8 @@ message DecisionsResponse {
 }
 
 service CommanderService {
+  // Reset resets the state of the generals and commanders
+  rpc Reset(EmptyRequest) returns (EmptyResponse) {}
   // IssueCommand sends a command to the generals
   rpc IssueCommand(EmptyRequest) returns (CommandResponse) {}
   // SentCommand sent command is sent by the generals when they send a command to another
@@ -72,5 +86,5 @@ service CommanderService {
   // Returns the edges in the graph, used by the UI
   rpc Edges(EmptyRequest) returns (EdgesResponse) {}
   // Returns the decisions made by the generals
-  rpc Decisions(EmptyRequest) returns (DecisionsResponse) {}
+  rpc Decisions(DecisionsRequest) returns (DecisionsResponse) {}
 }
