@@ -8,7 +8,7 @@ harrald_pid=$!
 MEMBERLIST_PORT=7949 GRPC_PORT=8083 NAME=John TRAITOR=false go run ./ &
 john_pid=$!
 
-MEMBERLIST_PORT=7951 GRPC_PORT=8085 NAME=Leif TRAITOR=true COMMANDS=retreat,attack,attack,attack,attack,retreat go run ./ &
+MEMBERLIST_PORT=7951 GRPC_PORT=8085 NAME=Leif TRAITOR=true COMMANDS=retreat,attack,attack,attack,retreat go run ./ &
 leif_pid=$!
 
 MEMBERLIST_PORT=7952 GRPC_PORT=8086 NAME=Rolo go run ./ &

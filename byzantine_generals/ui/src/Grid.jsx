@@ -133,12 +133,12 @@ function Grid() {
           }
           
           // does the item exist
-          const found = edges.find((item) => item.id === edge.id);
-          if (found) {
-            return;
-          }
+          //const found = edges.find((item) => item.id === edge.id);
+          //if (found) {
+          //  return;
+          //}
           
-          console.log(`Adding edge from ${source.data.label} to ${target.data.label}`);
+          //console.log(`Adding edge from ${source.data.label} to ${target.data.label}`);
 
           // work out which node on the target to connect to
           if(source.position.y < target.position.y) {

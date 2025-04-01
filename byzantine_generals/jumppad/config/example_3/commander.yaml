@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lamport-commander
+spec:
+  selector:
+    app: commander
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      name: grpc
+    - protocol: TCP
+      port: 7946
+      targetPort: 7946
+      name: memberlist
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commander
+  labels:
+    app: commander
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: commander
+  template:
+    metadata:
+      labels:
+        app: commander
+    spec:
+      containers:
+      - name: commander
+        image: nicholasjackson/lamport-commander:v0.1.1
+        ports:
+        - containerPort: 8080
+          name: grpc
+        - containerPort: 7946
+          name: memberlist
+        env:
+        - name: BIND_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: COMMANDS
+          value: "attack,attack,retreat"

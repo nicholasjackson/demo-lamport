@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"connectrpc.com/connect"
 	"github.com/charmbracelet/log"
@@ -40,7 +41,7 @@ func (s *GeneralServer) Reset(ctx context.Context, req *connect.Request[commonv1
 
 func (s *GeneralServer) ReceiveCommand(ctx context.Context, req *connect.Request[v1.ReceiveCommandRequest]) (*connect.Response[commonv1.EmptyResponse], error) {
 	s.Log.Debug("Received command", "name", s.Name, "from", req.Msg.Command.From, "round", req.Msg.Command.Round)
-	s.Log.Debug("command", req.Msg.Command)
+	s.Log.Debug("command", "value", req.Msg.Command)
 
 	if commands == nil {
 		commands = map[int][]*commonv1.Command{}
@@ -124,30 +125,46 @@ func (s *GeneralServer) decisionRound1(ctx context.Context, commanderAddr string
 			Commands: r1cm,
 		}})
 
-	s.Log.Info("Decision made", "round", 1, "general", s.Name, "commands", len(commands[1]), "decision", commands[1][0].Commands["0"])
+	s.Log.Info("Decision made", "round", 1, "general", s.Name, "id", s.ID, "commands", len(commands[1]), "decision", commands[1][0].Commands["0"])
 }
 
 // send the commanders message to all other generals
 func (s *GeneralServer) sendRound2Messages(ctx context.Context) {
 	s.Log.Info("Sending round 2 messages", "general", s.Name)
 
+	// get the list of generals in alphabetical order
+	generals := []*memlist.Meta{}
 	for _, m := range s.MemberList.Members() {
 		meta := memlist.MetaFromJSON(m.Meta)
-
-		// if the node is the commander or us then skip
 		if meta.ID == s.ID || meta.IsCommander {
 			continue
 		}
 
+		generals = append(generals, meta)
+	}
+
+	sort.Slice(generals, func(i, j int) bool {
+		return generals[i].Name < generals[j].Name
+	})
+
+	for i, meta := range generals {
 		client := clientv1connect.NewGeneralsServiceClient(
 			http.DefaultClient,
 			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
 		)
 
+		co := commands[1][0].Commands["0"]
+		if s.IsTraitor {
+			// if we are a traitor then we need to send a different command
+			// to the other generals
+			co = s.Commands[i]
+			s.Log.Info("Sending traitor command", "name", s.Name, "to", meta.ID, "round", 2, "command", co)
+		}
+
 		// forward the command to the other node
 		// but change the details to us
 		command := &commonv1.Command{
-			Commands:    map[string]string{s.ID: commands[1][0].Commands["0"]},
+			Commands:    map[string]string{s.ID: co},
 			From:        s.ID,
 			IsCommander: false,
 			Round:       2,
@@ -158,7 +175,7 @@ func (s *GeneralServer) sendRound2Messages(ctx context.Context) {
 				Command: command,
 			}})
 
-		s.Log.Debug("Sent command", "name", s.Name, "to", meta.ID, "round", 3, "commands", command)
+		s.Log.Debug("Sent command", "name", s.Name, "to", meta.ID, "round", 2, "commands", command)
 	}
 }
 

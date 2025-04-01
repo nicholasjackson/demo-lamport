@@ -47,11 +47,11 @@ func main() {
 	config.Name = "Commander"
 	config.BindPort = 7946
 	config.AdvertisePort = 7946
-	config.AdvertiseAddr = "127.0.0.1"
-	config.BindAddr = "127.0.0.1"
+	config.AdvertiseAddr = bindAddress
+	config.BindAddr = bindAddress
 	config.Logger = log.StandardLog(log.StandardLogOptions{ForceLevel: log.DebugLevel})
 	config.Delegate = &memlist.MemberListDelegate{Meta: &memlist.Meta{
-		BindAddr:       "127.0.0.1",
+		BindAddr:       bindAddress,
 		MemberlistPort: 7946,
 		GRPCPort:       8080,
 		IsCommander:    true,

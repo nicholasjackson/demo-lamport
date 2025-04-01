@@ -19,7 +19,6 @@ import (
 
 var _ serverv1connect.CommanderServiceHandler = &CommanderServer{}
 
-var commands []*commonv1.Command
 var decisions []*v1.Decision
 var votingRound = 0
 
@@ -35,7 +34,6 @@ type CommanderServer struct {
 func (s *CommanderServer) Reset(ctx context.Context, req *connect.Request[commonv1.EmptyRequest]) (*connect.Response[commonv1.EmptyResponse], error) {
 	s.Log.Info("Resetting state")
 
-	commands = nil
 	decisions = nil
 	votingRound = 0
 
@@ -107,9 +105,6 @@ func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request
 			s.Log.Error("Failed to send command", "error", err)
 			return nil, err
 		}
-
-		// keep track of the commands we have sent
-		commands = append(commands, command)
 	}
 
 	resp := v1.CommandResponse{}
@@ -168,21 +163,67 @@ func (s *CommanderServer) Nodes(context.Context, *connect.Request[commonv1.Empty
 
 func (s *CommanderServer) Edges(context.Context, *connect.Request[commonv1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
 	edges := []*v1.Edge{}
+	generals := []*memlist.Meta{}
 
-	//for _, e := range commands {
-	//	if e.Round != int32(votingRound) {
-	//		continue
-	//	}
+	// if we have not voted return nothing
+	if votingRound == 0 {
+		er := &v1.EdgesResponse{
+			Edges: edges,
+		}
+		resp := connect.NewResponse(er)
+		return resp, nil
+	}
 
-	//	edge := &v1.Edge{
-	//		Id:     fmt.Sprintf("%s-%s", e.From, e.To),
-	//		Source: e.From,
-	//		Target: e.To,
-	//		Label:  e.Command,
-	//	}
+	for _, m := range s.MemberList.Members() {
+		meta := memlist.MetaFromJSON(m.Meta)
+		if meta.IsCommander {
+			continue
+		}
 
-	//	edges = append(edges, edge)
-	//}
+		generals = append(generals, meta)
+	}
+
+	sort.Slice(generals, func(i, j int) bool {
+		return generals[i].Name < generals[j].Name
+	})
+
+	// add the edges from the commander to the generals
+	for i, g := range generals {
+		edge := &v1.Edge{
+			Id:     fmt.Sprintf("0-%s", g.ID),
+			Source: "0",
+			Target: g.ID,
+			Label:  s.Commands[i],
+		}
+
+		edges = append(edges, edge)
+	}
+
+	// add the edges from the generals to each other
+	for _, d := range decisions {
+		if d.Round != 2 {
+			continue
+		}
+
+		for _, c := range d.Commands {
+			if c.From == "0" {
+				continue
+			}
+
+			// find the general that sent data to this general
+			// and add an edge
+			edge := &v1.Edge{
+				Id:     fmt.Sprintf("%s-%s", c.From, d.From),
+				Source: c.From,
+				Target: d.From,
+				Label:  c.Commands[c.From],
+			}
+
+			edges = append(edges, edge)
+		}
+
+		//ds = append(ds, d)
+	}
 
 	er := &v1.EdgesResponse{
 		Edges: edges,
