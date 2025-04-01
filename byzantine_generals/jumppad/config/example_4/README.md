@@ -1,0 +1,1 @@
+Example showing 4 generals with no traitors.

@@ -1,0 +1,39 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: john
+  labels:
+    app: john
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: john
+  template:
+    metadata:
+      labels:
+        app: john
+    spec:
+      containers:
+      - name: john
+        image: nicholasjackson/lamport-general:v0.1.0
+        ports:
+        - containerPort: 8083
+          name: grpc
+        - containerPort: 7949
+          name: memberlist
+        env:
+        - name: BIND_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GRPC_PORT
+          value: "8083"
+        - name: MEMBERLIST_PORT
+          value: "7949"
+        - name: COMMANDER_ADDR
+          value: "lamport-commander.default.svc:7946"
+        - name: NAME
+          value: "John"
+ 

@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: leif
+  labels:
+    app: leif
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: leif
+  template:
+    metadata:
+      labels:
+        app: leif
+    spec:
+      containers:
+      - name: leif
+        image: nicholasjackson/lamport-general:v0.1.0
+        ports:
+        - containerPort: 8084
+          name: grpc
+        - containerPort: 7950
+          name: memberlist
+        env:
+        - name: BIND_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GRPC_PORT
+          value: "8084"
+        - name: MEMBERLIST_PORT
+          value: "7950"
+        - name: COMMANDER_ADDR
+          value: "lamport-commander.default.svc:7946"
+        - name: NAME
+          value: "leif"
+        - name: COMMANDS
+          value: "retreat,attack,attack,retreat"
+        - name: TRAITOR
+          value: "true"
+ 

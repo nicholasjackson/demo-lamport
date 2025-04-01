@@ -46,4 +46,6 @@ spec:
             fieldRef:
               fieldPath: status.podIP
         - name: COMMANDS
-          value: "attack,attack,retreat"
+          value: "retreat,attack,attack,attack,retreat"
+        - name: TRAITOR
+          value: "true"

@@ -1,0 +1,38 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rolo
+  labels:
+    app: rolo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rolo
+  template:
+    metadata:
+      labels:
+        app: rolo
+    spec:
+      containers:
+      - name: rolo
+        image: nicholasjackson/lamport-general:v0.1.0
+        ports:
+        - containerPort: 8085
+          name: grpc
+        - containerPort: 7951
+          name: memberlist
+        env:
+        - name: BIND_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GRPC_PORT
+          value: "8085"
+        - name: MEMBERLIST_PORT
+          value: "7951"
+        - name: COMMANDER_ADDR
+          value: "lamport-commander.default.svc:7946"
+        - name: NAME
+          value: "rolo"

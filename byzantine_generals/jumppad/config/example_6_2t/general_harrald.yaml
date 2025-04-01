@@ -1,0 +1,39 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harrald
+  labels:
+    app: harrald
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: harrald
+  template:
+    metadata:
+      labels:
+        app: harrald
+    spec:
+      containers:
+      - name: harrald
+        image: nicholasjackson/lamport-general:v0.1.0
+        ports:
+        - containerPort: 8082
+          name: grpc
+        - containerPort: 7948
+          name: memberlist
+        env:
+        - name: BIND_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GRPC_PORT
+          value: "8082"
+        - name: MEMBERLIST_PORT
+          value: "7948"
+        - name: COMMANDER_ADDR
+          value: "lamport-commander.default.svc:7946"
+        - name: NAME
+          value: "Harrald"
+ 

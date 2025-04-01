@@ -1,0 +1,38 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zoe
+  labels:
+    app: zoe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zoe
+  template:
+    metadata:
+      labels:
+        app: zoe
+    spec:
+      containers:
+      - name: zoe
+        image: nicholasjackson/lamport-general:v0.1.0
+        ports:
+        - containerPort: 8086
+          name: grpc
+        - containerPort: 7952
+          name: memberlist
+        env:
+        - name: BIND_ADDR
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GRPC_PORT
+          value: "8086"
+        - name: MEMBERLIST_PORT
+          value: "7952"
+        - name: COMMANDER_ADDR
+          value: "lamport-commander.default.svc:7946"
+        - name: NAME
+          value: "zoe"
