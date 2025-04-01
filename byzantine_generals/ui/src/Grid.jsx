@@ -41,20 +41,18 @@ function Grid() {
         data.decisions.forEach((decision) => {
           // add the decision to the node
           const index = nodes.findIndex((item) => item.id === decision.from);
-          if (index > -1 && nodes[index].data.decision === undefined) {
-            console.log("Adding decision to node", decision.from, decision.decision);
+          //console.log("Adding decision to node", decision.from, decision.decision);
 
-            let bgColor = '#fd4848'; // retreat color (red)
-            if(decision.decision === 'attack') {
-              bgColor = '#36ff40'; //attack color (green)
-            }
-
-            nodes[index] = {
-              ...nodes[index],
-              style: {...nodes[index].style, backgroundColor: bgColor},
-              data: {...nodes[index].data, decision: decision.decision}
-            };
+          let bgColor = '#fd4848'; // retreat color (red)
+          if(decision.decision === 'attack') {
+            bgColor = '#36ff40'; //attack color (green)
           }
+
+          nodes[index] = {
+            ...nodes[index],
+            style: {...nodes[index].style, backgroundColor: bgColor},
+            data: {...nodes[index].data, decision: decision.decision}
+          };
         });
 
         // update the nodes

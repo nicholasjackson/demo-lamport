@@ -8,6 +8,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/charmbracelet/log v0.4.1
 	github.com/hashicorp/memberlist v0.5.3
+	github.com/kr/pretty v0.1.0
 	github.com/rs/cors v1.11.1
 	golang.org/x/net v0.34.0
 	google.golang.org/protobuf v1.36.5
@@ -28,6 +29,7 @@ require (
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
+	github.com/kr/text v0.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/miekg/dns v1.1.26 // indirect

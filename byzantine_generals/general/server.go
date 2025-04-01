@@ -39,7 +39,8 @@ func (s *GeneralServer) Reset(ctx context.Context, req *connect.Request[commonv1
 }
 
 func (s *GeneralServer) ReceiveCommand(ctx context.Context, req *connect.Request[v1.ReceiveCommandRequest]) (*connect.Response[commonv1.EmptyResponse], error) {
-	s.Log.Info("Received command", "from", req.Msg.Command.From, "command", req.Msg.Command, "round", req.Msg.Command.Round)
+	s.Log.Debug("Received command", "name", s.Name, "from", req.Msg.Command.From, "round", req.Msg.Command.Round)
+	s.Log.Debug("command", req.Msg.Command)
 
 	if commands == nil {
 		commands = map[int][]*commonv1.Command{}
@@ -61,134 +62,254 @@ func (s *GeneralServer) ReceiveCommand(ctx context.Context, req *connect.Request
 	}
 
 	// handle the message if from the commander
-	if req.Msg.Command.IsCommander && req.Msg.Command.Round == 1 {
-		s.doRound1(ctx, round, commanderAddr, commanderPort)
+	switch round {
+	case 1:
+		// if we are in round 1 then make a decision based on the commanders message
+		if req.Msg.Command.IsCommander {
+			s.decisionRound1(ctx, commanderAddr, commanderPort)
+		}
+	case 2:
+		// If we are in round 2 we need to send the command we recieved from the commander
+		// to all other generals.
+		if req.Msg.Command.IsCommander {
+			s.sendRound2Messages(ctx)
+		}
+
+		// Then we need to make a decision based on the messages we have received
+		// from the other generals
+
+		// This decision based on the aggregated commands from the other generals
+		// not just the commander will allow us to make a decision based on the majority
+		// If there is a single traitor then that traitors command will be ignored
+		if len(commands[2]) == len(s.MemberList.Members())-1 {
+			s.decisionRound2(ctx, commanderAddr, commanderPort)
+		}
+	case 3:
+		// If we are in round 3 then we need to send all the commands we have received
+		// from all the generals to the other generals
+		// This allows us to handle two traitors
+		if req.Msg.Command.IsCommander {
+			s.sendRound3Messages(ctx)
+		}
+
+		// To handle two traitors we need to look at the messages that other generals
+		// recieved from the other generals not just the commander
+		// this allows us to filter out the traitors
+		if len(commands[3]) == len(s.MemberList.Members())-1 {
+			s.decisionRound3(ctx, commanderAddr, commanderPort)
+		}
 	}
 
 	resp := commonv1.EmptyResponse{}
 	return &connect.Response[commonv1.EmptyResponse]{Msg: &resp}, nil
 }
 
-func (s *GeneralServer) doRound1(ctx context.Context, round int, commanderAddr string, commanderPort int) {
+// send the decision to the commander
+func (s *GeneralServer) decisionRound1(ctx context.Context, commanderAddr string, commanderPort int) {
 	server := serverv1connect.NewCommanderServiceClient(
 		http.DefaultClient,
 		fmt.Sprintf("http://%s:%d", commanderAddr, commanderPort),
 	)
 
 	r1cm := []*commonv1.Command{}
-	for _, c := range commands[round] {
-		r1cm = append(r1cm, c)
-	}
+	r1cm = append(r1cm, commands[1]...)
 
 	// the decision for round 1 is always the same as the command sent
 	// by the commander
 	server.DecisionMade(ctx, &connect.Request[serverv1.Decision]{
 		Msg: &serverv1.Decision{
-			Round:    int32(round),
+			Round:    1,
 			From:     s.ID,
-			Decision: commands[round][0].Commands["0"],
+			Decision: commands[1][0].Commands["0"],
 			Commands: r1cm,
 		}})
+
+	s.Log.Info("Decision made", "round", 1, "general", s.Name, "commands", len(commands[1]), "decision", commands[1][0].Commands["0"])
 }
 
-//func (s*GeneralServer) doRound2(ctx context.Context, round int) {
-//	generals := 0
-//	if req.Msg.IsCommander {
-//		// send the command to all other generals
-//		for _, m := range s.MemberList.Members() {
-//			meta := memlist.MetaFromJSON(m.Meta)
-//
-//			// if the node is the commander or us then skip
-//			if meta.ID == s.ID || meta.IsCommander {
-//				continue
-//			}
-//
-//			command := req.Msg.Command
-//			if s.IsTraitor {
-//				// if the node is a traitor then send a random command
-//				command = s.Commands[generals]
-//			}
-//
-//			s.Log.Info("Sending command", "to", meta.ID, "command", command)
-//
-//			client := clientv1connect.NewGeneralsServiceClient(
-//				http.DefaultClient,
-//				fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
-//			)
-//
-//			// forward the command to the other node
-//			client.ReceiveCommand(ctx, &connect.Request[v1.ReceiveCommandRequest]{
-//				Msg: &v1.ReceiveCommandRequest{
-//					Command:     command,
-//					From:        s.ID,
-//					IsCommander: false,
-//					Round:       int32(round),
-//				}})
-//
-//			// also send what we sent to the other node to the commander
-//			// this allows the commander to build the ui
-//			server := serverv1connect.NewCommanderServiceClient(
-//				http.DefaultClient,
-//				fmt.Sprintf("http://%s:%d", commanderAddr, commanderPort),
-//			)
-//
-//			server.CommandSent(ctx, &connect.Request[serverv1.CommandSentRequest]{
-//				Msg: &serverv1.CommandSentRequest{
-//					Command: command,
-//					From:    s.ID,
-//					To:      meta.ID,
-//					Round:   int32(round),
-//				}})
-//
-//			generals++
-//		}
-//
-//	if len(commands[round]) == len(s.MemberList.Members())-1 {
-//		decision := s.calculateDecision(round)
-//		s.Log.Info("Decision made", "decision", decision)
-//
-//		// send the decision to the commander
-//		server := serverv1connect.NewCommanderServiceClient(
-//			http.DefaultClient,
-//			fmt.Sprintf("http://%s:%d", commanderAddr, commanderPort),
-//		)
-//
-//		cm := []*serverv1.Command{}
-//		for _, c := range commands[round] {
-//			cm = append(cm, &serverv1.Command{
-//				From:    c.From,
-//				Command: c.Command,
-//			})
-//		}
-//
-//		server.DecisionMade(ctx, &connect.Request[serverv1.Decision]{
-//			Msg: &serverv1.Decision{
-//				Round:    int32(round),
-//				From:     s.ID,
-//				Decision: decision,
-//				Commands: cm,
-//			}})
-//	}
-//}
+// send the commanders message to all other generals
+func (s *GeneralServer) sendRound2Messages(ctx context.Context) {
+	s.Log.Info("Sending round 2 messages", "general", s.Name)
 
-//func (s *GeneralServer) calculateDecision(round int) string {
-//	attackCount := 0
-//	retreatCount := 0
-//
-//	decision := "retreat"
-//
-//	for _, c := range commands[round] {
-//		switch c.Command {
-//		case "attack":
-//			attackCount++
-//		case "retreat":
-//			retreatCount++
-//		}
-//	}
-//
-//	if attackCount > retreatCount {
-//		decision = "attack"
-//	}
-//
-//	return decision
-//}
+	for _, m := range s.MemberList.Members() {
+		meta := memlist.MetaFromJSON(m.Meta)
+
+		// if the node is the commander or us then skip
+		if meta.ID == s.ID || meta.IsCommander {
+			continue
+		}
+
+		client := clientv1connect.NewGeneralsServiceClient(
+			http.DefaultClient,
+			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
+		)
+
+		// forward the command to the other node
+		// but change the details to us
+		command := &commonv1.Command{
+			Commands:    map[string]string{s.ID: commands[1][0].Commands["0"]},
+			From:        s.ID,
+			IsCommander: false,
+			Round:       2,
+		}
+
+		client.ReceiveCommand(ctx, &connect.Request[v1.ReceiveCommandRequest]{
+			Msg: &v1.ReceiveCommandRequest{
+				Command: command,
+			}})
+
+		s.Log.Debug("Sent command", "name", s.Name, "to", meta.ID, "round", 3, "commands", command)
+	}
+}
+
+func (s *GeneralServer) decisionRound2(ctx context.Context, commanderAddr string, commanderPort int) {
+	// sum the commands from the generals
+	attackCount := 0
+	retreatCount := 0
+	for _, c := range commands[2] {
+		for _, v := range c.Commands {
+			if v == "attack" {
+				attackCount++
+			} else {
+				retreatCount++
+			}
+		}
+	}
+
+	decision := "retreat"
+	if attackCount > retreatCount {
+		decision = "attack"
+	}
+
+	r2cm := []*commonv1.Command{}
+	r2cm = append(r2cm, commands[2]...)
+
+	server := serverv1connect.NewCommanderServiceClient(
+		http.DefaultClient,
+		fmt.Sprintf("http://%s:%d", commanderAddr, commanderPort),
+	)
+
+	// the decision for round 1 is always the same as the command sent
+	// by the commander
+	server.DecisionMade(ctx, &connect.Request[serverv1.Decision]{
+		Msg: &serverv1.Decision{
+			Round:    2,
+			From:     s.ID,
+			Decision: decision,
+			Commands: r2cm,
+		}})
+
+	s.Log.Info("Decision made", "round", 2, "general", s.Name, "commands", len(commands[2]), "decision", decision)
+}
+
+func (s *GeneralServer) sendRound3Messages(ctx context.Context) {
+	// for each command we have received from the other generals
+	// send it to the other node
+	combined := map[string]string{}
+	for _, c := range commands[2] {
+		for k, v := range c.Commands {
+			combined[k] = v
+		}
+	}
+
+	command := &commonv1.Command{
+		Commands:    combined,
+		From:        s.ID,
+		IsCommander: false,
+		Round:       3,
+	}
+
+	for _, m := range s.MemberList.Members() {
+		meta := memlist.MetaFromJSON(m.Meta)
+
+		// if the node is the commander or us then skip
+		if meta.ID == s.ID || meta.IsCommander {
+			continue
+		}
+
+		client := clientv1connect.NewGeneralsServiceClient(
+			http.DefaultClient,
+			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
+		)
+
+		client.ReceiveCommand(ctx, &connect.Request[v1.ReceiveCommandRequest]{
+			Msg: &v1.ReceiveCommandRequest{
+				Command: command,
+			}})
+
+		s.Log.Debug("Sent command", "name", s.Name, "to", meta.ID, "round", 3, "command", command)
+	}
+}
+
+func (s *GeneralServer) decisionRound3(ctx context.Context, commanderAddr string, commanderPort int) {
+	s.Log.Info("Making decision", "general", s.Name, "round", 3, "commands", len(commands[3]))
+
+	for _, c := range commands[3] {
+		s.Log.Debug("Commands", "from", c.From, "commands", c.Commands)
+	}
+
+	// we need to count the number of attack and retreat commands from each general
+	// then we can work out what the consensus decision is from each one
+	generalResults := map[string][]string{}
+	for _, c := range commands[3] {
+		for k, v := range c.Commands {
+			generalResults[k] = append(generalResults[k], v)
+		}
+	}
+
+	// now sum the results for each general
+	generalDecisions := map[string]string{}
+	for k, v := range generalResults {
+		attackCount := 0
+		retreatCount := 0
+		for _, d := range v {
+			if d == "attack" {
+				attackCount++
+			} else {
+				retreatCount++
+			}
+		}
+
+		if attackCount > retreatCount {
+			generalDecisions[k] = "attack"
+		} else {
+			generalDecisions[k] = "retreat"
+		}
+	}
+
+	// now sum the aggregated results
+	attackCount := 0
+	retreatCount := 0
+	for _, v := range generalDecisions {
+		if v == "attack" {
+			attackCount++
+		} else {
+			retreatCount++
+		}
+	}
+
+	decision := "retreat"
+	if attackCount > retreatCount {
+		decision = "attack"
+	}
+
+	server := serverv1connect.NewCommanderServiceClient(
+		http.DefaultClient,
+		fmt.Sprintf("http://%s:%d", commanderAddr, commanderPort),
+	)
+
+	r3cm := []*commonv1.Command{}
+	r3cm = append(r3cm, commands[3]...)
+
+	// the decision for round 1 is always the same as the command sent
+	// by the commander
+	server.DecisionMade(ctx, &connect.Request[serverv1.Decision]{
+		Msg: &serverv1.Decision{
+			Round:    3,
+			From:     s.ID,
+			Decision: decision,
+			Commands: r3cm,
+		}})
+
+	s.Log.Info("Decision made", "general", s.Name, "round", 3, "commands", len(commands[3]), "decision", decision)
+}

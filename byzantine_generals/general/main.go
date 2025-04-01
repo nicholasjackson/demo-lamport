@@ -61,7 +61,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Info("Listening", "memberlist", mlport, "grpc", grpcport, "name", name)
+	debug, _ := env.GetBool("DEBUG", false)
+	level := log.InfoLevel
+	if debug {
+		level = log.DebugLevel
+	}
+
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		Prefix: "general",
+		Level:  level,
+	})
+
+	logger.Info("Listening", "memberlist", mlport, "grpc", grpcport, "name", name)
 	guid, _ := guid.NewV4()
 
 	config := memberlist.DefaultLocalConfig()
@@ -83,20 +94,20 @@ func main() {
 
 	ml, err = memberlist.Create(config)
 	if err != nil {
-		log.Error("Failed to create memberlist", "error", err)
+		logger.Error("Failed to create memberlist", "error", err)
 		os.Exit(1)
 	}
 
 	nodes, err := ml.Join([]string{commanderAddress})
 	if err != nil {
-		log.Error("Failed to join memberlist", "error", err)
+		logger.Error("Failed to join memberlist", "error", err)
 		os.Exit(1)
 	}
 
-	log.Info("Joined memberlist", "nodes", nodes)
+	logger.Info("Joined memberlist", "nodes", nodes)
 
 	general := &GeneralServer{
-		Log:        log.NewWithOptions(os.Stderr, log.Options{Prefix: "general"}),
+		Log:        logger,
 		MemberList: ml,
 		Name:       name,
 		ID:         guid.String(),

@@ -80,7 +80,7 @@ func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request
 	})
 
 	for i, meta := range generals {
-		s.Log.Info("Sending command", "to", meta.ID, "command", s.Commands[i])
+		s.Log.Info("Sending command", "to", meta.ID, "round", votingRound, "command", s.Commands[i])
 
 		client := clientv1connect.NewGeneralsServiceClient(
 			http.DefaultClient,
