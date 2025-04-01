@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/memberlist"
 	clientv1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/client/v1"
 	"github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/client/v1/clientv1connect"
+	commonv1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/common/v1"
 	v1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1"
 	"github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1/serverv1connect"
 	memlist "github.com/nicholasjackson/demo-lamport/byzantine_generals/memberlist"
@@ -18,18 +19,20 @@ import (
 
 var _ serverv1connect.CommanderServiceHandler = &CommanderServer{}
 
-var commands []*v1.CommandSentRequest
+var commands []*commonv1.Command
 var decisions []*v1.Decision
 var votingRound = 0
 
 type CommanderServer struct {
+	Name       string
+	ID         string
 	Log        *log.Logger
 	MemberList *memberlist.Memberlist
 	IsTraitor  bool
 	Commands   []string
 }
 
-func (s *CommanderServer) Reset(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error) {
+func (s *CommanderServer) Reset(ctx context.Context, req *connect.Request[commonv1.EmptyRequest]) (*connect.Response[commonv1.EmptyResponse], error) {
 	s.Log.Info("Resetting state")
 
 	commands = nil
@@ -48,20 +51,19 @@ func (s *CommanderServer) Reset(ctx context.Context, req *connect.Request[v1.Emp
 			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
 		)
 
-		client.Reset(ctx, &connect.Request[clientv1.EmptyRequest]{
-			Msg: &clientv1.EmptyRequest{},
+		client.Reset(ctx, &connect.Request[commonv1.EmptyRequest]{
+			Msg: &commonv1.EmptyRequest{},
 		})
 	}
 
-	resp := v1.EmptyResponse{}
-	return &connect.Response[v1.EmptyResponse]{Msg: &resp}, nil
+	resp := commonv1.EmptyResponse{}
+	return &connect.Response[commonv1.EmptyResponse]{Msg: &resp}, nil
 }
 
-func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error) {
+func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request[commonv1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error) {
 	votingRound++
 	s.Log.Info("Received a request to issue a command", "round", votingRound)
 
-	commandsSent := 0
 	generals := []*memlist.Meta{}
 
 	for _, m := range s.MemberList.Members() {
@@ -77,67 +79,53 @@ func (s *CommanderServer) IssueCommand(ctx context.Context, req *connect.Request
 		return generals[i].Name < generals[j].Name
 	})
 
-	for _, meta := range generals {
+	for i, meta := range generals {
+		s.Log.Info("Sending command", "to", meta.ID, "command", s.Commands[i])
+
 		client := clientv1connect.NewGeneralsServiceClient(
 			http.DefaultClient,
 			fmt.Sprintf("http://%s:%d", meta.BindAddr, meta.GRPCPort),
 		)
 
-		command := s.Commands[commandsSent]
+		command := &commonv1.Command{
+			Commands:    map[string]string{s.ID: s.Commands[i]},
+			From:        s.ID,
+			IsCommander: true,
+			Round:       int32(votingRound),
+		}
 
-		_, err := client.ReceiveCommand(ctx, &connect.Request[clientv1.ReceiveCommandRequest]{
-			Msg: &clientv1.ReceiveCommandRequest{
-				Command:     command,
-				From:        "Commander",
-				IsCommander: true,
-				Round:       int32(votingRound),
-			}})
+		_, err := client.ReceiveCommand(
+			ctx,
+			&connect.Request[clientv1.ReceiveCommandRequest]{
+				Msg: &clientv1.ReceiveCommandRequest{
+					Command: command,
+				},
+			},
+		)
 
 		if err != nil {
 			s.Log.Error("Failed to send command", "error", err)
 			return nil, err
 		}
 
-		// keep a log of commands sent so we can build the edges
-		commandSent := &v1.CommandSentRequest{
-			Command: command,
-			From:    "0",
-			To:      meta.ID,
-		}
-
-		s.Log.Info("Sending command", "to", meta.ID, "command", command)
-
-		commandsSent++
-		commands = append(commands, commandSent)
+		// keep track of the commands we have sent
+		commands = append(commands, command)
 	}
 
 	resp := v1.CommandResponse{}
 	return &connect.Response[v1.CommandResponse]{Msg: &resp}, nil
 }
 
-func (s *CommanderServer) CommandSent(ctx context.Context, req *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error) {
-	s.Log.Info("Received command sent from a node")
-	if commands == nil {
-		commands = []*v1.CommandSentRequest{}
-	}
-
-	// add the command to the list
-	commands = append(commands, req.Msg)
-
-	resp := v1.CommandResponse{}
-	return &connect.Response[v1.CommandResponse]{Msg: &resp}, nil
-}
-
-func (s *CommanderServer) DecisionMade(ctx context.Context, req *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error) {
+func (s *CommanderServer) DecisionMade(ctx context.Context, req *connect.Request[v1.Decision]) (*connect.Response[commonv1.EmptyResponse], error) {
 	s.Log.Info("Received a decision from a node", "decision", req.Msg.Decision, "from", req.Msg.From)
 
 	decisions = append(decisions, req.Msg)
 
-	resp := v1.EmptyResponse{}
-	return &connect.Response[v1.EmptyResponse]{Msg: &resp}, nil
+	resp := commonv1.EmptyResponse{}
+	return &connect.Response[commonv1.EmptyResponse]{Msg: &resp}, nil
 }
 
-func (s *CommanderServer) Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
+func (s *CommanderServer) Nodes(context.Context, *connect.Request[commonv1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
 	nodes := []*v1.Node{}
 
 	// loop through the nodes and send them back
@@ -178,23 +166,23 @@ func (s *CommanderServer) Nodes(context.Context, *connect.Request[v1.EmptyReques
 	return resp, nil
 }
 
-func (s *CommanderServer) Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
+func (s *CommanderServer) Edges(context.Context, *connect.Request[commonv1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
 	edges := []*v1.Edge{}
 
-	for _, e := range commands {
-		if e.Round != int32(votingRound) {
-			continue
-		}
+	//for _, e := range commands {
+	//	if e.Round != int32(votingRound) {
+	//		continue
+	//	}
 
-		edge := &v1.Edge{
-			Id:     fmt.Sprintf("%s-%s", e.From, e.To),
-			Source: e.From,
-			Target: e.To,
-			Label:  e.Command,
-		}
+	//	edge := &v1.Edge{
+	//		Id:     fmt.Sprintf("%s-%s", e.From, e.To),
+	//		Source: e.From,
+	//		Target: e.To,
+	//		Label:  e.Command,
+	//	}
 
-		edges = append(edges, edge)
-	}
+	//	edges = append(edges, edge)
+	//}
 
 	er := &v1.EdgesResponse{
 		Edges: edges,

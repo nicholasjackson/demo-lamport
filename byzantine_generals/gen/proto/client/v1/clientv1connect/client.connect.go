@@ -8,7 +8,8 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/client/v1"
+	v11 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/client/v1"
+	v1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/common/v1"
 	http "net/http"
 	strings "strings"
 )
@@ -22,7 +23,7 @@ const _ = connect.IsAtLeastVersion1_13_0
 
 const (
 	// GeneralsServiceName is the fully-qualified name of the GeneralsService service.
-	GeneralsServiceName = "proto.client.v1.GeneralsService"
+	GeneralsServiceName = "proto.common.v1.GeneralsService"
 )
 
 // These constants are the fully-qualified names of the RPCs defined in this package. They're
@@ -34,21 +35,21 @@ const (
 // period.
 const (
 	// GeneralsServiceResetProcedure is the fully-qualified name of the GeneralsService's Reset RPC.
-	GeneralsServiceResetProcedure = "/proto.client.v1.GeneralsService/Reset"
+	GeneralsServiceResetProcedure = "/proto.common.v1.GeneralsService/Reset"
 	// GeneralsServiceReceiveCommandProcedure is the fully-qualified name of the GeneralsService's
 	// ReceiveCommand RPC.
-	GeneralsServiceReceiveCommandProcedure = "/proto.client.v1.GeneralsService/ReceiveCommand"
+	GeneralsServiceReceiveCommandProcedure = "/proto.common.v1.GeneralsService/ReceiveCommand"
 )
 
-// GeneralsServiceClient is a client for the proto.client.v1.GeneralsService service.
+// GeneralsServiceClient is a client for the proto.common.v1.GeneralsService service.
 type GeneralsServiceClient interface {
 	// Reset resets the state
 	Reset(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error)
 	// ReceiveCommand from the generals or commander
-	ReceiveCommand(context.Context, *connect.Request[v1.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error)
+	ReceiveCommand(context.Context, *connect.Request[v11.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error)
 }
 
-// NewGeneralsServiceClient constructs a client for the proto.client.v1.GeneralsService service. By
+// NewGeneralsServiceClient constructs a client for the proto.common.v1.GeneralsService service. By
 // default, it uses the Connect protocol with the binary Protobuf Codec, asks for gzipped responses,
 // and sends uncompressed requests. To use the gRPC or gRPC-Web protocols, supply the
 // connect.WithGRPC() or connect.WithGRPCWeb() options.
@@ -57,7 +58,7 @@ type GeneralsServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewGeneralsServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) GeneralsServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	generalsServiceMethods := v1.File_proto_client_v1_client_proto.Services().ByName("GeneralsService").Methods()
+	generalsServiceMethods := v11.File_proto_client_v1_client_proto.Services().ByName("GeneralsService").Methods()
 	return &generalsServiceClient{
 		reset: connect.NewClient[v1.EmptyRequest, v1.EmptyResponse](
 			httpClient,
@@ -65,7 +66,7 @@ func NewGeneralsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(generalsServiceMethods.ByName("Reset")),
 			connect.WithClientOptions(opts...),
 		),
-		receiveCommand: connect.NewClient[v1.ReceiveCommandRequest, v1.EmptyResponse](
+		receiveCommand: connect.NewClient[v11.ReceiveCommandRequest, v1.EmptyResponse](
 			httpClient,
 			baseURL+GeneralsServiceReceiveCommandProcedure,
 			connect.WithSchema(generalsServiceMethods.ByName("ReceiveCommand")),
@@ -77,25 +78,25 @@ func NewGeneralsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 // generalsServiceClient implements GeneralsServiceClient.
 type generalsServiceClient struct {
 	reset          *connect.Client[v1.EmptyRequest, v1.EmptyResponse]
-	receiveCommand *connect.Client[v1.ReceiveCommandRequest, v1.EmptyResponse]
+	receiveCommand *connect.Client[v11.ReceiveCommandRequest, v1.EmptyResponse]
 }
 
-// Reset calls proto.client.v1.GeneralsService.Reset.
+// Reset calls proto.common.v1.GeneralsService.Reset.
 func (c *generalsServiceClient) Reset(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error) {
 	return c.reset.CallUnary(ctx, req)
 }
 
-// ReceiveCommand calls proto.client.v1.GeneralsService.ReceiveCommand.
-func (c *generalsServiceClient) ReceiveCommand(ctx context.Context, req *connect.Request[v1.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error) {
+// ReceiveCommand calls proto.common.v1.GeneralsService.ReceiveCommand.
+func (c *generalsServiceClient) ReceiveCommand(ctx context.Context, req *connect.Request[v11.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error) {
 	return c.receiveCommand.CallUnary(ctx, req)
 }
 
-// GeneralsServiceHandler is an implementation of the proto.client.v1.GeneralsService service.
+// GeneralsServiceHandler is an implementation of the proto.common.v1.GeneralsService service.
 type GeneralsServiceHandler interface {
 	// Reset resets the state
 	Reset(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error)
 	// ReceiveCommand from the generals or commander
-	ReceiveCommand(context.Context, *connect.Request[v1.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error)
+	ReceiveCommand(context.Context, *connect.Request[v11.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error)
 }
 
 // NewGeneralsServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -104,7 +105,7 @@ type GeneralsServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewGeneralsServiceHandler(svc GeneralsServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	generalsServiceMethods := v1.File_proto_client_v1_client_proto.Services().ByName("GeneralsService").Methods()
+	generalsServiceMethods := v11.File_proto_client_v1_client_proto.Services().ByName("GeneralsService").Methods()
 	generalsServiceResetHandler := connect.NewUnaryHandler(
 		GeneralsServiceResetProcedure,
 		svc.Reset,
@@ -117,7 +118,7 @@ func NewGeneralsServiceHandler(svc GeneralsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(generalsServiceMethods.ByName("ReceiveCommand")),
 		connect.WithHandlerOptions(opts...),
 	)
-	return "/proto.client.v1.GeneralsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return "/proto.common.v1.GeneralsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case GeneralsServiceResetProcedure:
 			generalsServiceResetHandler.ServeHTTP(w, r)
@@ -133,9 +134,9 @@ func NewGeneralsServiceHandler(svc GeneralsServiceHandler, opts ...connect.Handl
 type UnimplementedGeneralsServiceHandler struct{}
 
 func (UnimplementedGeneralsServiceHandler) Reset(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.client.v1.GeneralsService.Reset is not implemented"))
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.common.v1.GeneralsService.Reset is not implemented"))
 }
 
-func (UnimplementedGeneralsServiceHandler) ReceiveCommand(context.Context, *connect.Request[v1.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.client.v1.GeneralsService.ReceiveCommand is not implemented"))
+func (UnimplementedGeneralsServiceHandler) ReceiveCommand(context.Context, *connect.Request[v11.ReceiveCommandRequest]) (*connect.Response[v1.EmptyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.common.v1.GeneralsService.ReceiveCommand is not implemented"))
 }

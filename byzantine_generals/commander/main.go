@@ -70,6 +70,8 @@ func main() {
 		MemberList: ml,
 		IsTraitor:  traitor,
 		Commands:   arrCommands,
+		Name:       "Commander",
+		ID:         "0",
 	}
 
 	mux := http.NewServeMux()

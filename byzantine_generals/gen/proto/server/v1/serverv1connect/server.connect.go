@@ -8,7 +8,8 @@ import (
 	connect "connectrpc.com/connect"
 	context "context"
 	errors "errors"
-	v1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1"
+	v1 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/common/v1"
+	v11 "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1"
 	http "net/http"
 	strings "strings"
 )
@@ -38,9 +39,6 @@ const (
 	// CommanderServiceIssueCommandProcedure is the fully-qualified name of the CommanderService's
 	// IssueCommand RPC.
 	CommanderServiceIssueCommandProcedure = "/proto.server.v1.CommanderService/IssueCommand"
-	// CommanderServiceCommandSentProcedure is the fully-qualified name of the CommanderService's
-	// CommandSent RPC.
-	CommanderServiceCommandSentProcedure = "/proto.server.v1.CommanderService/CommandSent"
 	// CommanderServiceDecisionMadeProcedure is the fully-qualified name of the CommanderService's
 	// DecisionMade RPC.
 	CommanderServiceDecisionMadeProcedure = "/proto.server.v1.CommanderService/DecisionMade"
@@ -58,18 +56,15 @@ type CommanderServiceClient interface {
 	// Reset resets the state of the generals and commanders
 	Reset(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error)
 	// IssueCommand sends a command to the generals
-	IssueCommand(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error)
-	// SentCommand sent command is sent by the generals when they send a command to another
-	// general, it allows us to track the commands sent and update the UI
-	CommandSent(context.Context, *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error)
+	IssueCommand(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.CommandResponse], error)
 	// DecisionMade is called when a decision has been made by the generals
-	DecisionMade(context.Context, *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error)
+	DecisionMade(context.Context, *connect.Request[v11.Decision]) (*connect.Response[v1.EmptyResponse], error)
 	// Returns the nodes in the graph, used by the UI
-	Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error)
+	Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.NodesResponse], error)
 	// Returns the edges in the graph, used by the UI
-	Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error)
+	Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.EdgesResponse], error)
 	// Returns the decisions made by the generals
-	Decisions(context.Context, *connect.Request[v1.DecisionsRequest]) (*connect.Response[v1.DecisionsResponse], error)
+	Decisions(context.Context, *connect.Request[v11.DecisionsRequest]) (*connect.Response[v11.DecisionsResponse], error)
 }
 
 // NewCommanderServiceClient constructs a client for the proto.server.v1.CommanderService service.
@@ -81,7 +76,7 @@ type CommanderServiceClient interface {
 // http://api.acme.com or https://acme.com/grpc).
 func NewCommanderServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...connect.ClientOption) CommanderServiceClient {
 	baseURL = strings.TrimRight(baseURL, "/")
-	commanderServiceMethods := v1.File_proto_server_v1_server_proto.Services().ByName("CommanderService").Methods()
+	commanderServiceMethods := v11.File_proto_server_v1_server_proto.Services().ByName("CommanderService").Methods()
 	return &commanderServiceClient{
 		reset: connect.NewClient[v1.EmptyRequest, v1.EmptyResponse](
 			httpClient,
@@ -89,37 +84,31 @@ func NewCommanderServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(commanderServiceMethods.ByName("Reset")),
 			connect.WithClientOptions(opts...),
 		),
-		issueCommand: connect.NewClient[v1.EmptyRequest, v1.CommandResponse](
+		issueCommand: connect.NewClient[v1.EmptyRequest, v11.CommandResponse](
 			httpClient,
 			baseURL+CommanderServiceIssueCommandProcedure,
 			connect.WithSchema(commanderServiceMethods.ByName("IssueCommand")),
 			connect.WithClientOptions(opts...),
 		),
-		commandSent: connect.NewClient[v1.CommandSentRequest, v1.CommandResponse](
-			httpClient,
-			baseURL+CommanderServiceCommandSentProcedure,
-			connect.WithSchema(commanderServiceMethods.ByName("CommandSent")),
-			connect.WithClientOptions(opts...),
-		),
-		decisionMade: connect.NewClient[v1.Decision, v1.EmptyResponse](
+		decisionMade: connect.NewClient[v11.Decision, v1.EmptyResponse](
 			httpClient,
 			baseURL+CommanderServiceDecisionMadeProcedure,
 			connect.WithSchema(commanderServiceMethods.ByName("DecisionMade")),
 			connect.WithClientOptions(opts...),
 		),
-		nodes: connect.NewClient[v1.EmptyRequest, v1.NodesResponse](
+		nodes: connect.NewClient[v1.EmptyRequest, v11.NodesResponse](
 			httpClient,
 			baseURL+CommanderServiceNodesProcedure,
 			connect.WithSchema(commanderServiceMethods.ByName("Nodes")),
 			connect.WithClientOptions(opts...),
 		),
-		edges: connect.NewClient[v1.EmptyRequest, v1.EdgesResponse](
+		edges: connect.NewClient[v1.EmptyRequest, v11.EdgesResponse](
 			httpClient,
 			baseURL+CommanderServiceEdgesProcedure,
 			connect.WithSchema(commanderServiceMethods.ByName("Edges")),
 			connect.WithClientOptions(opts...),
 		),
-		decisions: connect.NewClient[v1.DecisionsRequest, v1.DecisionsResponse](
+		decisions: connect.NewClient[v11.DecisionsRequest, v11.DecisionsResponse](
 			httpClient,
 			baseURL+CommanderServiceDecisionsProcedure,
 			connect.WithSchema(commanderServiceMethods.ByName("Decisions")),
@@ -131,12 +120,11 @@ func NewCommanderServiceClient(httpClient connect.HTTPClient, baseURL string, op
 // commanderServiceClient implements CommanderServiceClient.
 type commanderServiceClient struct {
 	reset        *connect.Client[v1.EmptyRequest, v1.EmptyResponse]
-	issueCommand *connect.Client[v1.EmptyRequest, v1.CommandResponse]
-	commandSent  *connect.Client[v1.CommandSentRequest, v1.CommandResponse]
-	decisionMade *connect.Client[v1.Decision, v1.EmptyResponse]
-	nodes        *connect.Client[v1.EmptyRequest, v1.NodesResponse]
-	edges        *connect.Client[v1.EmptyRequest, v1.EdgesResponse]
-	decisions    *connect.Client[v1.DecisionsRequest, v1.DecisionsResponse]
+	issueCommand *connect.Client[v1.EmptyRequest, v11.CommandResponse]
+	decisionMade *connect.Client[v11.Decision, v1.EmptyResponse]
+	nodes        *connect.Client[v1.EmptyRequest, v11.NodesResponse]
+	edges        *connect.Client[v1.EmptyRequest, v11.EdgesResponse]
+	decisions    *connect.Client[v11.DecisionsRequest, v11.DecisionsResponse]
 }
 
 // Reset calls proto.server.v1.CommanderService.Reset.
@@ -145,32 +133,27 @@ func (c *commanderServiceClient) Reset(ctx context.Context, req *connect.Request
 }
 
 // IssueCommand calls proto.server.v1.CommanderService.IssueCommand.
-func (c *commanderServiceClient) IssueCommand(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error) {
+func (c *commanderServiceClient) IssueCommand(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.CommandResponse], error) {
 	return c.issueCommand.CallUnary(ctx, req)
 }
 
-// CommandSent calls proto.server.v1.CommanderService.CommandSent.
-func (c *commanderServiceClient) CommandSent(ctx context.Context, req *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error) {
-	return c.commandSent.CallUnary(ctx, req)
-}
-
 // DecisionMade calls proto.server.v1.CommanderService.DecisionMade.
-func (c *commanderServiceClient) DecisionMade(ctx context.Context, req *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error) {
+func (c *commanderServiceClient) DecisionMade(ctx context.Context, req *connect.Request[v11.Decision]) (*connect.Response[v1.EmptyResponse], error) {
 	return c.decisionMade.CallUnary(ctx, req)
 }
 
 // Nodes calls proto.server.v1.CommanderService.Nodes.
-func (c *commanderServiceClient) Nodes(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
+func (c *commanderServiceClient) Nodes(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.NodesResponse], error) {
 	return c.nodes.CallUnary(ctx, req)
 }
 
 // Edges calls proto.server.v1.CommanderService.Edges.
-func (c *commanderServiceClient) Edges(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
+func (c *commanderServiceClient) Edges(ctx context.Context, req *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.EdgesResponse], error) {
 	return c.edges.CallUnary(ctx, req)
 }
 
 // Decisions calls proto.server.v1.CommanderService.Decisions.
-func (c *commanderServiceClient) Decisions(ctx context.Context, req *connect.Request[v1.DecisionsRequest]) (*connect.Response[v1.DecisionsResponse], error) {
+func (c *commanderServiceClient) Decisions(ctx context.Context, req *connect.Request[v11.DecisionsRequest]) (*connect.Response[v11.DecisionsResponse], error) {
 	return c.decisions.CallUnary(ctx, req)
 }
 
@@ -179,18 +162,15 @@ type CommanderServiceHandler interface {
 	// Reset resets the state of the generals and commanders
 	Reset(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EmptyResponse], error)
 	// IssueCommand sends a command to the generals
-	IssueCommand(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error)
-	// SentCommand sent command is sent by the generals when they send a command to another
-	// general, it allows us to track the commands sent and update the UI
-	CommandSent(context.Context, *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error)
+	IssueCommand(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.CommandResponse], error)
 	// DecisionMade is called when a decision has been made by the generals
-	DecisionMade(context.Context, *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error)
+	DecisionMade(context.Context, *connect.Request[v11.Decision]) (*connect.Response[v1.EmptyResponse], error)
 	// Returns the nodes in the graph, used by the UI
-	Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error)
+	Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.NodesResponse], error)
 	// Returns the edges in the graph, used by the UI
-	Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error)
+	Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.EdgesResponse], error)
 	// Returns the decisions made by the generals
-	Decisions(context.Context, *connect.Request[v1.DecisionsRequest]) (*connect.Response[v1.DecisionsResponse], error)
+	Decisions(context.Context, *connect.Request[v11.DecisionsRequest]) (*connect.Response[v11.DecisionsResponse], error)
 }
 
 // NewCommanderServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -199,7 +179,7 @@ type CommanderServiceHandler interface {
 // By default, handlers support the Connect, gRPC, and gRPC-Web protocols with the binary Protobuf
 // and JSON codecs. They also support gzip compression.
 func NewCommanderServiceHandler(svc CommanderServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
-	commanderServiceMethods := v1.File_proto_server_v1_server_proto.Services().ByName("CommanderService").Methods()
+	commanderServiceMethods := v11.File_proto_server_v1_server_proto.Services().ByName("CommanderService").Methods()
 	commanderServiceResetHandler := connect.NewUnaryHandler(
 		CommanderServiceResetProcedure,
 		svc.Reset,
@@ -210,12 +190,6 @@ func NewCommanderServiceHandler(svc CommanderServiceHandler, opts ...connect.Han
 		CommanderServiceIssueCommandProcedure,
 		svc.IssueCommand,
 		connect.WithSchema(commanderServiceMethods.ByName("IssueCommand")),
-		connect.WithHandlerOptions(opts...),
-	)
-	commanderServiceCommandSentHandler := connect.NewUnaryHandler(
-		CommanderServiceCommandSentProcedure,
-		svc.CommandSent,
-		connect.WithSchema(commanderServiceMethods.ByName("CommandSent")),
 		connect.WithHandlerOptions(opts...),
 	)
 	commanderServiceDecisionMadeHandler := connect.NewUnaryHandler(
@@ -248,8 +222,6 @@ func NewCommanderServiceHandler(svc CommanderServiceHandler, opts ...connect.Han
 			commanderServiceResetHandler.ServeHTTP(w, r)
 		case CommanderServiceIssueCommandProcedure:
 			commanderServiceIssueCommandHandler.ServeHTTP(w, r)
-		case CommanderServiceCommandSentProcedure:
-			commanderServiceCommandSentHandler.ServeHTTP(w, r)
 		case CommanderServiceDecisionMadeProcedure:
 			commanderServiceDecisionMadeHandler.ServeHTTP(w, r)
 		case CommanderServiceNodesProcedure:
@@ -271,26 +243,22 @@ func (UnimplementedCommanderServiceHandler) Reset(context.Context, *connect.Requ
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Reset is not implemented"))
 }
 
-func (UnimplementedCommanderServiceHandler) IssueCommand(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.CommandResponse], error) {
+func (UnimplementedCommanderServiceHandler) IssueCommand(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.CommandResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.IssueCommand is not implemented"))
 }
 
-func (UnimplementedCommanderServiceHandler) CommandSent(context.Context, *connect.Request[v1.CommandSentRequest]) (*connect.Response[v1.CommandResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.CommandSent is not implemented"))
-}
-
-func (UnimplementedCommanderServiceHandler) DecisionMade(context.Context, *connect.Request[v1.Decision]) (*connect.Response[v1.EmptyResponse], error) {
+func (UnimplementedCommanderServiceHandler) DecisionMade(context.Context, *connect.Request[v11.Decision]) (*connect.Response[v1.EmptyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.DecisionMade is not implemented"))
 }
 
-func (UnimplementedCommanderServiceHandler) Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.NodesResponse], error) {
+func (UnimplementedCommanderServiceHandler) Nodes(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.NodesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Nodes is not implemented"))
 }
 
-func (UnimplementedCommanderServiceHandler) Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v1.EdgesResponse], error) {
+func (UnimplementedCommanderServiceHandler) Edges(context.Context, *connect.Request[v1.EmptyRequest]) (*connect.Response[v11.EdgesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Edges is not implemented"))
 }
 
-func (UnimplementedCommanderServiceHandler) Decisions(context.Context, *connect.Request[v1.DecisionsRequest]) (*connect.Response[v1.DecisionsResponse], error) {
+func (UnimplementedCommanderServiceHandler) Decisions(context.Context, *connect.Request[v11.DecisionsRequest]) (*connect.Response[v11.DecisionsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("proto.server.v1.CommanderService.Decisions is not implemented"))
 }

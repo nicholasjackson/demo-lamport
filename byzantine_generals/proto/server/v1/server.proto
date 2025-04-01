@@ -1,11 +1,10 @@
 syntax = "proto3";
 
+import "proto/common/v1/common.proto";
+
 package proto.server.v1;
 
 option go_package = "github.com/nicholasjackson/demo-lamport/byzantine_generals/gen/proto/server/v1;serverv1";
-
-message EmptyRequest {}
-message EmptyResponse {}
 
 message Data {
   string label = 1;
@@ -39,7 +38,6 @@ message EdgesResponse {
   repeated Edge edges = 1;
 }
 
-
 message CommandResponse {
   string message = 1;
 }
@@ -51,16 +49,11 @@ message CommandSentRequest {
   int32 round = 4;
 }
 
-message Command {
-  string command = 1;
-  string from = 2;
-}
-
 message Decision {
   int32 round = 1;
   string from = 2;
   string decision = 3;
-  repeated Command commands = 4;
+  repeated proto.common.v1.Command commands = 4;
 }
 
 message DecisionsRequest {
@@ -73,18 +66,15 @@ message DecisionsResponse {
 
 service CommanderService {
   // Reset resets the state of the generals and commanders
-  rpc Reset(EmptyRequest) returns (EmptyResponse) {}
+  rpc Reset(proto.common.v1.EmptyRequest) returns (proto.common.v1.EmptyResponse) {}
   // IssueCommand sends a command to the generals
-  rpc IssueCommand(EmptyRequest) returns (CommandResponse) {}
-  // SentCommand sent command is sent by the generals when they send a command to another
-  // general, it allows us to track the commands sent and update the UI  
-  rpc CommandSent(CommandSentRequest) returns (CommandResponse) {}
+  rpc IssueCommand(proto.common.v1.EmptyRequest) returns (CommandResponse) {}
   // DecisionMade is called when a decision has been made by the generals
-  rpc DecisionMade(Decision) returns (EmptyResponse) {}
+  rpc DecisionMade(Decision) returns (proto.common.v1.EmptyResponse) {}
   // Returns the nodes in the graph, used by the UI
-  rpc Nodes(EmptyRequest) returns (NodesResponse) {}
+  rpc Nodes(proto.common.v1.EmptyRequest) returns (NodesResponse) {}
   // Returns the edges in the graph, used by the UI
-  rpc Edges(EmptyRequest) returns (EdgesResponse) {}
+  rpc Edges(proto.common.v1.EmptyRequest) returns (EdgesResponse) {}
   // Returns the decisions made by the generals
   rpc Decisions(DecisionsRequest) returns (DecisionsResponse) {}
 }
