@@ -1,5 +1,5 @@
 IMAGE_NAME = nicholasjackson/lamport
-TAG = v0.1.1
+TAG = v0.1.2
 
 build_commander:
 	docker build -t $(IMAGE_NAME)-commander:$(TAG) -f commander_server.Dockerfile ../

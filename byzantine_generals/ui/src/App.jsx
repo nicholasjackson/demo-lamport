@@ -6,11 +6,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 
 import Grid from './Grid';
-import Table from './Table';
 
 import '@xyflow/react/dist/style.css';
 function CustomTabPanel(props) {
@@ -81,19 +78,8 @@ function Flow() {
           </Box>
         </Toolbar>
       </AppBar>
-      <Box component="main" sx={{ p: 3, width: '100vw', height: '100vh', marginTop: '48px' }}>
-        <Tabs value={value} onChange={handleChange} aria-label="basic tabs example">
-          <Tab label="Grid" />
-          <Tab label="Table" />
-        </Tabs>
-        <CustomTabPanel value={value} index={0}>
-          <Grid/>
-        </CustomTabPanel>
-        <CustomTabPanel value={value} index={1}>
-          <Table round={1}/>
-          <Table round={2}/>
-          <Table round={3}/>
-        </CustomTabPanel>
+      <Box component="main" sx={{ p: 3, width: '100vw', height: '95vh', marginTop: '48px' }}>
+        <Grid/>
       </Box>
     </Box>
   );
